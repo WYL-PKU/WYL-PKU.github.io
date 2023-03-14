@@ -162,6 +162,107 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2023/03/14/C%E8%AF%AD%E8%A8%80%E8%92%99%E7%89%B9%E5%8D%A1%E7%BD%97/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="WangYiLin">
+      <meta itemprop="description" content="生活可以随心所欲，但不能随波逐流">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="WYL's Homepage">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2023/03/14/C%E8%AF%AD%E8%A8%80%E8%92%99%E7%89%B9%E5%8D%A1%E7%BD%97/" class="post-title-link" itemprop="url">C语言蒙特卡罗</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-03-14 21:17:26 / 修改时间：22:40:46" itemprop="dateCreated datePublished" datetime="2023-03-14T21:17:26+08:00">2023-03-14</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%89%A9%E7%90%86/" itemprop="url" rel="index"><span itemprop="name">物理</span></a>
+                </span>
+            </span>
+
+          <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>1.3k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>4 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><p>今天看了《Statistical Data Analysis》一书中关于Monte Carlo方法的介绍，觉得非常有趣，遂动手用C将其实现，源代码在本篇blog的结尾处。</p>
+<div style="width:60%;margin:auto"><img src="/2023/03/14/C%E8%AF%AD%E8%A8%80%E8%92%99%E7%89%B9%E5%8D%A1%E7%BD%97/maxwell.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">生成的Maxwell速率分布</font>
+</center>
+
+<p>程序整体由三个部分组成，分别是生成单位随机数、Transformation method和Acceptance Rejection method<sup id="fnref:1"><a href="#fn:1" rel="footnote"><span class="hint--top hint--error hint--medium hint--rounded hint--bounce" aria-label="[Cowan, G. Statistical Data Analysis. Clarendon Press, 1998.](https://books.google.com.hk/books?id=JhL2FiF3hO4C)">[1]</span></a></sup>。</p>
+<p>生成单位随机数所使用的是<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Linear_congruential_generator">Linear congruential generator算法</a>，由于取的modulus比较大，所以能够实现比rand()函数更加精细的生成结果。最初的种子来自系统时间，这就保证了每次生成的结果是不同的。生成的随机数必然是整数，所以要将其单位化，之后还要根据实际需要将其进行平移和伸缩。</p>
+<p>Transformation方法的概述如下：设$F(x)$为随机变量$x$的累积分布函数，如果我们取$y&#x3D;F(x),F(x)\in [0,1]$作为一个新的随机变量，那么$\frac{\text{d}y}{\text{d}x}&#x3D;F’(x)&#x3D;f(x)$，所以随机变量$y$所满足的pdf(probability density function)函数为</p>
+<p>$$g(y)&#x3D;f(x)|\frac{\text{d}x}{\text{d}y}|&#x3D;1$$</p>
+<p>也就是$y$实际上服从$[0,1]$上的均匀分布。根据这一点，我们可以反向生成目标分布，因为均匀分布是非常容易实现的。现在我们将$x$视为$y$的函数，那么我们有</p>
+<p>$$F(x(y))&#x3D;\int_{-\infty}^{x(y)}f(t)\text{d}t&#x3D;y$$</p>
+<p>将这个式子积分就得到了$x(y)$和$y$的函数，从中可以（对于比较简单的函数）将$x(y)$反解出来。利用这个关系和已经生成好的$y$，就可以生成服从目标分布的$x$。</p>
+<p>Transformation的概念非常清晰，但缺点也是显而易见的：当函数比较复杂的时候反解$x(y)$的工作几乎是不可能的。这时我们可以利用另一种方法——<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/Rejection_sampling">Acceptance Rejection method</a>。</p>
+<p>这种方法的步骤如下：（1）生成位于$[x_{min},x_{max}]$的均匀分布的$x$序列；（2）生成位于$[0,f_{max}]$的均匀分布的$u$序列；（3）如果$u&lt;f(x)$，则接受$x$，否则就拒绝$x$。由于在$x$处，$x$被接受的概率正比于$f(x)$，所以得到的分布也是服从$f(x)$的。</p>
+<p>然而这种方法也有其缺点：当$f(x)$有尖峰和长尾的时候，效率很低下，往往发生的情况是生成了20个$x$，也不一定有一个能被接受。所以我们可以对这种方法进行进一步的改进：将初始的矩形域修改为小一点的域。也就是首先寻找一个能将$f(x)$包括进去的曲线$g(x)$，然后（1）生成一个服从$\frac{g(x)}{\int g(t)\text{d}t}$的$x$；（2）生成一个服从$[0,g(x)]$均匀分布的$u$；（3）如果$u&lt;f(x)$，则接受$x$，重复以上步骤。但是由于目前缺少关于这种方法的实例，我也没有迫切的改进效率的需求，我暂时没有在程序中包括这种改进后的方法。</p>
+<p>以下是程序的源代码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span><span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span><span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span><span class="string">&lt;math.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span><span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span><span class="string">&lt;time.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/*定义multiplier和modulus*/</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> M 4294967296 <span class="comment">// 2^32</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> A 1664525</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> C 1013904223</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PI 3.14159265358979323846</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/*定义整数和浮点数两种顺序表*/</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">intseq</span> &#123;</span></span><br><span class="line">	<span class="type">int</span> MAXNUM;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span>* element;</span><br><span class="line">&#125;; <span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">intseq</span>* <span class="title">Pintseq</span>;</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">floatseq</span> &#123;</span></span><br><span class="line">	<span class="type">int</span> MAXNUM;</span><br><span class="line">	<span class="type">float</span>* element;</span><br><span class="line">&#125;; <span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">floatseq</span>* <span class="title">Pfloatseq</span>;</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/*建立空表*/</span></span><br><span class="line">Pintseq <span class="title function_">createintseq</span><span class="params">(<span class="type">int</span> m)</span> &#123;</span><br><span class="line">	Pintseq pis = (Pintseq)<span class="built_in">malloc</span>(<span class="keyword">sizeof</span>(<span class="keyword">struct</span> intseq));</span><br><span class="line">	<span class="keyword">if</span> (pis != <span class="literal">NULL</span>) &#123;</span><br><span class="line">		pis-&gt;element = (<span class="type">unsigned</span> <span class="type">int</span>*)<span class="built_in">malloc</span>(<span class="keyword">sizeof</span>(<span class="type">unsigned</span> <span class="type">int</span>) * m);</span><br><span class="line">		<span class="keyword">if</span> (pis-&gt;element) &#123;</span><br><span class="line">			pis-&gt;MAXNUM = m;</span><br><span class="line">			<span class="keyword">return</span> pis;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">else</span> <span class="built_in">free</span>(pis);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;Out of space!&quot;</span>); <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br><span class="line">Pfloatseq <span class="title function_">createfloatseq</span><span class="params">(<span class="type">int</span> m)</span> &#123;</span><br><span class="line">	Pfloatseq pfs = (Pfloatseq)<span class="built_in">malloc</span>(<span class="keyword">sizeof</span>(<span class="keyword">struct</span> floatseq));</span><br><span class="line">	<span class="keyword">if</span> (pfs != <span class="literal">NULL</span>) &#123;</span><br><span class="line">		pfs-&gt;element = (<span class="type">float</span>*)<span class="built_in">malloc</span>(<span class="keyword">sizeof</span>(<span class="type">float</span>) * m);</span><br><span class="line">		<span class="keyword">if</span> (pfs-&gt;element) &#123;</span><br><span class="line">			pfs-&gt;MAXNUM = m;</span><br><span class="line">			<span class="keyword">return</span> pfs;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">else</span> <span class="built_in">free</span>(pfs);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;Out of space!&quot;</span>); <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*新建随机数（原始整数）顺序表，并返回指针*/</span></span><br><span class="line">Pintseq <span class="title function_">Random</span><span class="params">(<span class="type">int</span> size, <span class="type">unsigned</span> see)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> seed;</span><br><span class="line">	<span class="keyword">if</span> (see == <span class="number">0</span>) &#123; seed = (<span class="type">unsigned</span>)time(<span class="literal">NULL</span>); &#125;</span><br><span class="line">	<span class="keyword">else</span> &#123; seed = (<span class="type">unsigned</span>)time(<span class="literal">NULL</span>); seed = seed * see; &#125;</span><br><span class="line">	Pintseq pis = createintseq(size);</span><br><span class="line">	pis-&gt;element[<span class="number">0</span>] = (A * seed + C) % M;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">1</span>; i &lt; pis-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		pis-&gt;element[i] = (A * pis-&gt;element[i - <span class="number">1</span>] + C) % M;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> pis;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*输出（打印至屏幕）*/</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">printintseq</span><span class="params">(Pintseq pis)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pis-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;%d\n&quot;</span>, pis-&gt;element[i]);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="type">void</span> <span class="title function_">printfloatseq</span><span class="params">(Pfloatseq pfs)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pfs-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		<span class="built_in">printf</span>(<span class="string">&quot;%f\n&quot;</span>, pfs-&gt;element[i]);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*单位化原始随机数*/</span></span><br><span class="line">Pfloatseq <span class="title function_">unifying</span><span class="params">(Pintseq pis)</span> &#123;</span><br><span class="line">	Pfloatseq pfs = createfloatseq(pis-&gt;MAXNUM);</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pfs-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		pfs-&gt;element[i] = (<span class="type">float</span>)pis-&gt;element[i] / M;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> pfs;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*对随机数进行transform*/</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">transform</span><span class="params">(Pfloatseq pfs)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pfs-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		pfs-&gt;element[i] = -<span class="built_in">log</span>(pfs-&gt;element[i]);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*对随机数进行区间的平移和伸缩变换*/</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">moveandscale</span><span class="params">(Pfloatseq pfs, <span class="type">float</span> xmin, <span class="type">float</span> xmax)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pfs-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		pfs-&gt;element[i] = xmin + pfs-&gt;element[i] * (xmax - xmin);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/*进行acceptance-rejection筛选，并输出结果*/</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">acceptance_rejection</span><span class="params">(Pfloatseq pxs, Pfloatseq pus)</span> &#123;</span><br><span class="line">	<span class="type">int</span> i; <span class="type">float</span> x, fxi;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; pxs-&gt;MAXNUM; i++) &#123;</span><br><span class="line">		<span class="comment">/*在这里指定f(x)的具体形式*/</span></span><br><span class="line">		x = pxs-&gt;element[i];</span><br><span class="line">		fxi = <span class="number">4</span> / <span class="built_in">sqrt</span>(PI) * <span class="built_in">exp</span>(-<span class="built_in">pow</span>(x, <span class="number">2</span>)) * <span class="built_in">pow</span>(x, <span class="number">2</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (pus-&gt;element[i] &lt; fxi) &#123;</span><br><span class="line">			<span class="built_in">printf</span>(<span class="string">&quot;%f\n&quot;</span>, pxs-&gt;element[i]);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">()</span> &#123;</span><br><span class="line">	<span class="comment">/*数据规模*/</span></span><br><span class="line">	<span class="built_in">printf</span>(<span class="string">&quot;Please type the numbers of the random numbers you want:\n&quot;</span>);</span><br><span class="line">	<span class="type">int</span> size; <span class="built_in">scanf</span>(<span class="string">&quot;%d&quot;</span>, &amp;size);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*生成标准化的x和u数列*/</span></span><br><span class="line">	Pintseq pis = Random(size, <span class="number">2</span>);</span><br><span class="line">	Pfloatseq pxs = unifying(pis);</span><br><span class="line">	pis = Random(pxs-&gt;MAXNUM, <span class="number">7</span>);</span><br><span class="line">	Pfloatseq pus = unifying(pis);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*伸缩变换*/</span></span><br><span class="line">	moveandscale(pxs, <span class="number">0</span>, <span class="number">5</span>);</span><br><span class="line">	moveandscale(pus, <span class="number">0</span>, <span class="number">4</span> / <span class="built_in">sqrt</span>(PI) * <span class="built_in">exp</span>(<span class="number">-1</span>));</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*acceptance-rejection*/</span></span><br><span class="line">	acceptance_rejection(pxs, pus);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<div style="width:40%;margin:auto"></div><div id="footnotes"><hr><div id="footnotelist"><ol style="list-style: none; padding-left: 0; margin-left: 40px"><li id="fn:1"><span style="display: inline-block; vertical-align: top; padding-right: 10px; margin-left: -40px">1.</span><span style="display: inline-block; vertical-align: top; margin-left: 10px;"><a target="_blank" rel="noopener" href="https://books.google.com.hk/books?id=JhL2FiF3hO4C">Cowan, G. Statistical Data Analysis. Clarendon Press, 1998.</a><a href="#fnref:1" rev="footnote"> ↩</a></span></li></ol></div></div>
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://example.com/2023/01/22/%E6%96%B0%E5%B9%B4%E7%A5%9D%E8%B4%BA/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -787,14 +888,14 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">5</span>
+          <span class="site-state-item-count">6</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
@@ -848,13 +949,13 @@
       <i class="fa fa-chart-area"></i>
     </span>
       <span class="post-meta-item-text">站点总字数：</span>
-    <span title="站点总字数">7k</span>
+    <span title="站点总字数">8k</span>
     <span class="post-meta-divider">|</span>
     <span class="post-meta-item-icon">
       <i class="fa fa-coffee"></i>
     </span>
       <span class="post-meta-item-text">站点阅读时长 &asymp;</span>
-    <span title="站点阅读时长">24 分钟</span>
+    <span title="站点阅读时长">28 分钟</span>
 </div>
   <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
   </div>
