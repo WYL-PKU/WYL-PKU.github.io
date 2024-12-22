@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/notebook32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/notebook16.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic|SimHei:300,300italic,400,400italic,700,700italic|Microsoft Yahei:300,300italic,400,400italic,700,700italic&display=swap&subset=latin,latin-ext">
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":"valine","storage":true,"lazyload":false,"nav":{"valine":{"order":-1}},"activeClass":"valine"},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="1. MITgcm模式介绍MITgcm是一个用于研究大气、海洋与气候的数值模式，它是一个基于有限体积法的非静力平衡模式。MITgcm巧妙地通过流体动力学方程的同构，使得其动力内核既可以进行大气运动的模拟，也可以进行海洋流动的模拟。    图1  海洋与大气运动的 z-p 同构   如果对MITgcm模式的方程和数值算法感兴趣，可以参考MITgcm的官方文档，里面对于模式的kernel、参数化方案等">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MITgcm入门指南">
+<meta property="og:url" content="http://example.com/2024/12/22/MITgcm/index.html">
+<meta property="og:site_name" content="WYL&#39;s Homepage">
+<meta property="og:description" content="1. MITgcm模式介绍MITgcm是一个用于研究大气、海洋与气候的数值模式，它是一个基于有限体积法的非静力平衡模式。MITgcm巧妙地通过流体动力学方程的同构，使得其动力内核既可以进行大气运动的模拟，也可以进行海洋流动的模拟。    图1  海洋与大气运动的 z-p 同构   如果对MITgcm模式的方程和数值算法感兴趣，可以参考MITgcm的官方文档，里面对于模式的kernel、参数化方案等">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/isomorphism.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/baroclinic_ocean_gyre.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_6_b.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_6_c.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_7_a.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_7_b.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_9_a.png">
+<meta property="og:image" content="http://example.com/2024/12/22/MITgcm/fig_4_9_b.png">
+<meta property="article:published_time" content="2024-12-22T03:26:15.000Z">
+<meta property="article:modified_time" content="2024-12-22T08:12:59.252Z">
+<meta property="article:author" content="Wang Yilin">
+<meta property="article:tag" content="物理">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/2024/12/22/MITgcm/isomorphism.png">
+
+<link rel="canonical" href="http://example.com/2024/12/22/MITgcm/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>MITgcm入门指南 | WYL's Homepage</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">WYL's Homepage</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2024/12/22/MITgcm/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="Wang Yilin">
+      <meta itemprop="description" content="生活可以随心所欲，但不能随波逐流">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="WYL's Homepage">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          MITgcm入门指南
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2024-12-22 11:26:15 / 修改时间：16:12:59" itemprop="dateCreated datePublished" datetime="2024-12-22T11:26:15+08:00">2024-12-22</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E7%89%A9%E7%90%86/" itemprop="url" rel="index"><span itemprop="name">物理</span></a>
+                </span>
+            </span>
+
+          
+            <span id="/2024/12/22/MITgcm/" class="post-meta-item leancloud_visitors" data-flag-title="MITgcm入门指南" title="阅读次数">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span class="leancloud-visitors-count"></span>
+            </span>
+            <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv" style="display: none;">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-eye"></i>
+              </span>
+              <span class="post-meta-item-text">阅读次数：</span>
+              <span id="busuanzi_value_page_pv"></span>
+            </span>
+  
+  <span class="post-meta-item">
+    
+      <span class="post-meta-item-icon">
+        <i class="far fa-comment"></i>
+      </span>
+      <span class="post-meta-item-text">Valine：</span>
+    
+    <a title="valine" href="/2024/12/22/MITgcm/#valine-comments" itemprop="discussionUrl">
+      <span class="post-comments-count valine-comment-count" data-xid="/2024/12/22/MITgcm/" itemprop="commentCount"></span>
+    </a>
+  </span>
+  
+  <br>
+            <span class="post-meta-item" title="本文字数">
+              <span class="post-meta-item-icon">
+                <i class="far fa-file-word"></i>
+              </span>
+                <span class="post-meta-item-text">本文字数：</span>
+              <span>2.8k</span>
+            </span>
+            <span class="post-meta-item" title="阅读时长">
+              <span class="post-meta-item-icon">
+                <i class="far fa-clock"></i>
+              </span>
+                <span class="post-meta-item-text">阅读时长 &asymp;</span>
+              <span>9 分钟</span>
+            </span>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/hint.css/2.4.1/hint.min.css"><h3 id="1-MITgcm模式介绍"><a href="#1-MITgcm模式介绍" class="headerlink" title="1. MITgcm模式介绍"></a>1. MITgcm模式介绍</h3><p>MITgcm是一个用于研究大气、海洋与气候的数值模式，它是一个基于有限体积法的非静力平衡模式。MITgcm巧妙地通过流体动力学方程的同构，使得其动力内核既可以进行大气运动的模拟，也可以进行海洋流动的模拟。</p>
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/isomorphism.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图1  海洋与大气运动的 z-p 同构</font>
+</center>
+
+<p>如果对MITgcm模式的方程和数值算法感兴趣，可以参考MITgcm的<a target="_blank" rel="noopener" href="https://mitgcm.readthedocs.io/">官方文档</a>，里面对于模式的kernel、参数化方案等有较为详细的介绍。</p>
+<h3 id="2-安装与编译"><a href="#2-安装与编译" class="headerlink" title="2. 安装与编译"></a>2. 安装与编译</h3><p>首先我们需要获取MITgcm的代码，可以通过git进行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">git clone https://github.com/MITgcm/MITgcm.git</span><br></pre></td></tr></table></figure>
+
+<p>如果git不可用，也可以直接访问MITgcm的github页面手动下载解压。</p>
+<p>下载之后，cd进入MITgcm的根目录，应该包含以下内容：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">model  #包含主程序源码</span><br><span class="line">eesupp #包含运行环境的源码</span><br><span class="line">pkg    #包含各package的源码</span><br><span class="line">doc    #包含rst格式的MITgcm文档</span><br><span class="line">tools  #包含各种有用的工具，比如genmake2，用于生成makefile的bash脚本</span><br><span class="line">utils  #包含各种功能，比如与matlab和python的间交互，utils/scripts包含将不同处理器或pile的输出文件合并的csh脚本</span><br><span class="line">verification #包含样例实验</span><br><span class="line">jobs #包含样例任务脚本</span><br><span class="line">lsopt #Line search优化代码</span><br><span class="line">optim #MITgcm和line search代码的接口</span><br></pre></td></tr></table></figure>
+
+<p>接下来我们需要选定一个想要进行的实验，编译将在此基础上进行。所有的样例实验都存放在<code>verification</code>目录下，本文将以<code>tutorial_baroclinic_gyre</code>为例进行演示，进行其他实验的步骤类似。我们首先进入目标实验的编译目录：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cd verification/tutorial_baroclinic_gyre/build</span><br></pre></td></tr></table></figure>
+
+<p>接着，需要生成Makefile：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">../../../tools/genmake2 -mods ../code -optfile ../../../tools/build_options/linux_amd64_gfortran</span><br></pre></td></tr></table></figure>
+
+<p>其中<code>-mods</code>命令告诉genmake使用<code>../code</code>中的内容覆盖模型默认的源码，包括<code>SIZE.h</code>（配置模式的区域大小，后面介绍）；<code>-optfile</code>命令告诉genmake在执行期间运行指定的optfile，这是一个bash脚本，包含环境变量、路径、编译器选项等，MITgcm提供了非常多预置的optfile，位于<code>tools/build_options</code>目录下，可以根据自己的机器进行选择。</p>
+<p>生成Makefile之后，我们通过以下命令创建依赖关系：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make depend</span><br></pre></td></tr></table></figure>
+
+<p>最后，可以使用以下命令编译代码：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make</span><br></pre></td></tr></table></figure>
+
+<p>如果成功编译，会生成一个名为<code>mitgcmuv</code>的可执行文件，因为编译后<code>build</code>目录内文件较多，可以使用<code>stat mitgcmuv</code>来方便地检查编译是否成功进行。</p>
+<h3 id="3-实例演示：以tutorial-baroclinic-gyre为例"><a href="#3-实例演示：以tutorial-baroclinic-gyre为例" class="headerlink" title="3. 实例演示：以tutorial_baroclinic_gyre为例"></a>3. 实例演示：以<code>tutorial_baroclinic_gyre</code>为例</h3><h4 id="3-1-试运行"><a href="#3-1-试运行" class="headerlink" title="3.1 试运行"></a>3.1 试运行</h4><p>我们从MITgcm的根目录进入运行目录：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cd run</span><br></pre></td></tr></table></figure>
+
+<p>目前这是一个空目录，我们需要将可执行文件和输入文件放置进来：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cp ../build/mitgcmuv .</span><br><span class="line">cp ../input/* .</span><br></pre></td></tr></table></figure>
+
+<p>这样，我们就做好了运行前的全部准备，可以直接运行</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./mitgcmuv</span><br></pre></td></tr></table></figure>
+
+<p>样例实验通常默认了非常少的时间步数，运行后立刻可以得到结果，可以将输出与<code>../results/output.txt</code>进行对比，如果结果相同，则说明程序执行正常，我们接着可以开始对实验参数进行更具体的配置。</p>
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/baroclinic_ocean_gyre.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图2  baroclinic ocean gyre</font>
+</center>
+
+<p>本文运行的实验是Baroclinic Ocean Gyre，模拟风和浮力强迫下的斜压双涡漩海洋环流，位于<code>verification/tutorial_baroclinic_gyre</code>目录下。本实验使用球坐标网格并设有15个垂直层，横跨热带到中纬度，并受到恒定的东西风应力强迫，并且风应力的强度在南北方向上成正弦变化。</p>
+<h4 id="3-2-编译配置（Compile-time-Configuration）"><a href="#3-2-编译配置（Compile-time-Configuration）" class="headerlink" title="3.2 编译配置（Compile-time Configuration）"></a>3.2 编译配置（Compile-time Configuration）</h4><p>接下来我们对实验中的参数进行配置，配置分为两部分：编译配置和运行配置，编译配置需要在编译前进行，每次修改之后都需要重新编译，而运行配置则不需要。</p>
+<h5 id="3-2-1-code-packages-conf"><a href="#3-2-1-code-packages-conf" class="headerlink" title="3.2.1 code/packages.conf"></a>3.2.1 <code>code/packages.conf</code></h5><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">packages.conf文件应该包含以下内容：</span></span><br><span class="line">gfd</span><br><span class="line">diagnostics</span><br><span class="line">mnc</span><br></pre></td></tr></table></figure>
+
+<p>在这个文件中我们指定了我们希望包含的库。<code>gfd</code>是一个预定义的库组，包含了大多数设置所需要的标准库。<code>mnc</code>库用于将输出以netCDF格式存储；<code>diagnostics</code>库允许用户从用于模型诊断的众多变量中选择输出，并指定输出频率，提供多种时间平均和快照选项，如果没有启用这个库，输出将局限于少量的快照。</p>
+<h5 id="3-2-2-code-SIZE-h"><a href="#3-2-2-code-SIZE-h" class="headerlink" title="3.2.2 code/SIZE.h"></a>3.2.2 <code>code/SIZE.h</code></h5><p>这个文件指定了模型的几何。以下代码计算了整个模型域的水平大小：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&amp;           Nx  = sNx*nSx*nPx,</span><br><span class="line">&amp;           Ny  = sNy*nSy*nPy,</span><br></pre></td></tr></table></figure>
+
+<p>整个模型域的大小是$62\times 62$，我们在这里将模型在水平方向上划分成四个区块，每个区块的大小为$31\times 31$，也就是</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">&amp;           sNx =  31,</span><br><span class="line">&amp;           sNy =  31,</span><br><span class="line"></span><br><span class="line">&amp;           nSx =   2,</span><br><span class="line">&amp;           nSy =   2,</span><br></pre></td></tr></table></figure>
+
+<p>为了正确地处理边界条件，模型的区块需要具有一定的重叠区域（overlap），MITgcm许可的最小的overlap是2，对于更加复杂的对流方案或参数化方案可能需要更大的overlap，我们在这里保持2即可：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&amp;           OLx =   2,</span><br><span class="line">&amp;           OLy =   2,</span><br></pre></td></tr></table></figure>
+
+<p>以下代码设置了<code>nPx</code>和<code>nPy</code>，分别表示在$x$和$y$方向上使用的进程数量，我们暂时使用单进程，因此这两个参数设置为1：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">&amp;           nPx =   1,</span><br><span class="line">&amp;           nPy =   1,</span><br></pre></td></tr></table></figure>
+
+<p>最后，我们指定模型具有15个垂直层：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&amp;           Nr  =   15)</span><br></pre></td></tr></table></figure>
+
+<p>修改完上述参数后，别忘记重新编译。</p>
+<h4 id="3-3-运行配置（Run-time-Configuration）"><a href="#3-3-运行配置（Run-time-Configuration）" class="headerlink" title="3.3 运行配置（Run-time Configuration）"></a>3.3 运行配置（Run-time Configuration）</h4><p><code>input/data</code>文件里包含了模型的大部分参数，可以根据自己的需要进行修改。</p>
+<p>第一部分主要是物理参数设置：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_"># </span><span class="language-bash">Model parameters</span></span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">Continuous equation parameters</span></span><br><span class="line"> &amp;PARM01</span><br><span class="line"> viscAh=5000.,  #水平粘度系数</span><br><span class="line"> viscAr=1.E-2,  #竖直粘度系数</span><br><span class="line"> no_slip_sides=.TRUE.,  #侧边界无滑移边界条件</span><br><span class="line"> no_slip_bottom=.FALSE.,  #底部无滑移边界条件</span><br><span class="line"> diffKhT=1000.,  #水平温度扩散系数</span><br><span class="line"> diffKrT=1.E-5,  #竖直温度扩散系数</span><br><span class="line"><span class="meta prompt_"> #</span><span class="language-bash">静力不稳定混合参数化</span></span><br><span class="line"> ivdc_kappa=1.,</span><br><span class="line"> implicitDiffusion=.TRUE.,</span><br><span class="line"> eosType=&#x27;LINEAR&#x27;,  #使用线性状态方程</span><br><span class="line"> tRef=30.,27.,24.,21.,18.,15.,13.,11.,9.,7.,6.,5.,4.,3.,2.,  #参考温度</span><br><span class="line"> tAlpha=2.E-4,  #热膨胀系数</span><br><span class="line"> sBeta=0.,  #盐度收缩系数</span><br><span class="line"> rhoNil=999.8,  #表面参考密度</span><br><span class="line"> gravity=9.81,  #重力加速度</span><br><span class="line"><span class="meta prompt_"> # </span><span class="language-bash">自由表面公式</span></span><br><span class="line"> rigidLid=.FALSE.,</span><br><span class="line"> implicitFreeSurface=.TRUE.,</span><br><span class="line"> exactConserv=.TRUE.,</span><br><span class="line"> saltStepping=.FALSE.,  #盐度时间积分</span><br><span class="line"><span class="meta prompt_"># </span><span class="language-bash">globalFiles=.TRUE.,</span></span><br><span class="line"> &amp;</span><br></pre></td></tr></table></figure>
+
+<p>另一部分比较重要的是对时间参数的设置：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">startTime=0.,  #开始时间</span><br><span class="line">endTime=12000.,  #结束时间</span><br><span class="line">deltaT=1200.,  #时间步长</span><br><span class="line">pChkptFreq=622080000.,  #检查点文件保存频率</span><br><span class="line">chkptFreq=155520000.,  #检查点文件保存频率</span><br><span class="line">dumpFreq=31104000.,  #快照输出频率</span><br><span class="line"><span class="meta prompt_">#</span><span class="language-bash">监视器输出选项</span></span><br><span class="line">monitorFreq=1200.,</span><br><span class="line">monitorSelect=2,</span><br></pre></td></tr></table></figure>
+
+<p><code>input/bathy.bin</code>和<code>input/windx_cosy.bin</code>文件称分别指定了海底的地形以及风应力，这两个文件可以通过<code>input/gendata.m</code>或<code>input/gendata.py</code>生成。</p>
+<p>完成对所有参数的的修改之后，就可以正式进行模式的运行了，可以将程序提交后台，并将日志输出到文件中：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">./mitgcmuv &gt; output.log &amp;</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-4-输出格式"><a href="#3-4-输出格式" class="headerlink" title="3.4 输出格式"></a>3.4 输出格式</h4><p>程序运行结束之后，可以查看日志文件的末尾，如果显示</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">PROGRAM MAIN: Execution ended Normally</span><br></pre></td></tr></table></figure>
+
+<p>则说明程序顺利完成。此时<code>run</code>目录下会有很多<code>pickup.*</code>文件，这些文件可以用来restart，也就是从某个时间点开始运行，这样即使我们的程序中途退出了，我们也不需要再次从$t&#x3D;0$开始运行。</p>
+<p>由于我们开启了mnc功能，我们可以获得netCDF格式的输出文件，这些文件被存放在<code>run/mnc_test_[iter]</code>子目录下，iter从0001开始，每次重新运行程序都会递增1。</p>
+<p>由于我们在运行的时候将模型分为了4个区块，因此数据也是分4个区块存储的，MITgcm提供了便捷的工具将结果合并为完整的netCDF文件，我们可以在运行目录<code>run</code>下执行：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta prompt_">% </span><span class="language-bash"><span class="built_in">ln</span> -s ../../../utils/python/MITgcmutils/scripts/gluemncbig .</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o grid.nc mnc_test_*/grid.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o state.nc mnc_test_*/state*.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o dynDiag.nc mnc_test_*/dynDiag*.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o surfDiag.nc mnc_test_*/surfDiag*.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o phiHyd.nc mnc_test_*/phiHyd*.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash">./gluemncbig -o phiHydLow.nc mnc_test_*/phiHydLow*.t*.nc</span></span><br><span class="line"><span class="meta prompt_">% </span><span class="language-bash"><span class="built_in">ln</span> -s mnc_test_0001/dynStDiag.0000000000.t001.nc dynStDiag.nc</span></span><br></pre></td></tr></table></figure>
+
+<p>主要的netCDF输出文件包括：</p>
+<ul>
+<li><code>grid.nc</code>：包含模型网格变量</li>
+<li><code>state.nc</code>：包含状态变量（$U, V, W, Temp, S, Eta$）的快照</li>
+<li><code>surfDig.nc</code>：包含<code>data.diagnostics</code>的列表1指定的二维诊断量（ETAN, TRELAX, MXDEPTH等）</li>
+<li><code>dynDiag.c</code>：包含列表2指定的三维诊断量（THETA, PHIHYD, UVEL, VVEL, WVEL等）</li>
+<li><code>dynStDiag.nc</code>：包含统计-动力学诊断量</li>
+<li><code>phiHyd.nc</code>, <code>phiHydLow.nc</code>：分别为静水压势异常的三维快照场和底部静水压势异常的二维快照场</li>
+</ul>
+<h3 id="4-结果分析"><a href="#4-结果分析" class="headerlink" title="4. 结果分析"></a>4. 结果分析</h3><p>我们将模型运行100年，查看系统达到稳态之后的状态。由于系统运行所需的时间较长，且占用存储空间较大，我们在本文中就不改变参数进行实验了，我们将对单次运行之后得到的结果进行分析。</p>
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_6_b.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图3  不同深度处的平均位温</font>
+</center>
+
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_6_c.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图4  不同深度处的位温标准差</font>
+</center>
+
+<p>模型表层的温度最开始为$30^\circ C$，在外界的forcing下表层温度迅速降低，从图3中可以看到在最开始的5年内，表层温度差不多就达到了平衡，而深度的海水温度变化比较缓慢。从图4中可以看到，表层海水的梯度较大，水平方向上分布不均匀，而深层海水的水平方向比较均匀。</p>
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_7_a.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图5  海平面的高度分布</font>
+</center>
+
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_7_b.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图6  温度弛豫的分布</font>
+</center>
+
+<p>模型在运行到100年的时候已经很接近稳态了，我们取这一年的年平均数据进行分析。图5显示了海平面的高度，可以看到在风应力和科里奥利力的作用下，海平面的高度呈现南高北低。图6显示了温度弛豫的分布，我们可以看到海水与外界的热量交换在水平方向上是怎么分布的，表层海水在内部输送和表面交换的作用下达到热量平衡。</p>
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_9_a.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图7  位温在400m深度的水平分布</font>
+</center>
+
+<div style="width:60%;margin:auto"><img src="/2024/12/22/MITgcm/fig_4_9_b.png" class=""></div>
+
+<center>
+<font color="#A9A9A9">图8  位温在北纬$33.5^\circ$的分布</font>
+</center>
+
+<p>我们还可以观察海水内部的温度是如何分布的，图7和图8分别显示了在400m深度和北纬$33.5^\circ$处的温度分布。</p>
+<h3 id="5-总结"><a href="#5-总结" class="headerlink" title="5. 总结"></a>5. 总结</h3><p>本文介绍了MITgcm模式的安装、编译与运行过程。MITgcm功能强大、使用方便，如果想要更深入地学习，可以访问<a target="_blank" rel="noopener" href="https://mitgcm.readthedocs.io/">官方文档</a>，里面不仅包含对本文所有内容的介绍，还有对所有tutorial实验的讲解，以及更加灵活的物理过程和参数化方案的配置。</p>
+
+    </div>
+
+    
+    
+    
+        
+
+<div>
+<ul class="post-copyright">
+  <li class="post-copyright-author">
+    <strong>本文作者： </strong>Wang Yilin
+  </li>
+  <li class="post-copyright-link">
+    <strong>本文链接：</strong>
+    <a href="http://example.com/2024/12/22/MITgcm/" title="MITgcm入门指南">http://example.com/2024/12/22/MITgcm/</a>
+  </li>
+  <li class="post-copyright-license">
+    <strong>版权声明： </strong>本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" rel="noopener" target="_blank"><i class="fab fa-fw fa-creative-commons"></i>BY-NC-SA</a> 许可协议。转载请注明出处！
+  </li>
+</ul>
+</div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%89%A9%E7%90%86/" rel="tag"># 物理</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2024/12/05/WRF/" rel="prev" title="WRF：理想实验指南">
+      <i class="fa fa-chevron-left"></i> WRF：理想实验指南
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2030/01/01/0%E7%BD%AE%E9%A1%B6/" rel="next" title="置顶">
+      置顶 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+</script>
+
+
+          </div>
+          
+    <div class="comments" id="valine-comments"></div>
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-MITgcm%E6%A8%A1%E5%BC%8F%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">1. MITgcm模式介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-%E5%AE%89%E8%A3%85%E4%B8%8E%E7%BC%96%E8%AF%91"><span class="nav-number">2.</span> <span class="nav-text">2. 安装与编译</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-%E5%AE%9E%E4%BE%8B%E6%BC%94%E7%A4%BA%EF%BC%9A%E4%BB%A5tutorial-baroclinic-gyre%E4%B8%BA%E4%BE%8B"><span class="nav-number">3.</span> <span class="nav-text">3. 实例演示：以tutorial_baroclinic_gyre为例</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-%E8%AF%95%E8%BF%90%E8%A1%8C"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 试运行</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-%E7%BC%96%E8%AF%91%E9%85%8D%E7%BD%AE%EF%BC%88Compile-time-Configuration%EF%BC%89"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 编译配置（Compile-time Configuration）</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#3-2-1-code-packages-conf"><span class="nav-number">3.2.1.</span> <span class="nav-text">3.2.1 code&#x2F;packages.conf</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-2-2-code-SIZE-h"><span class="nav-number">3.2.2.</span> <span class="nav-text">3.2.2 code&#x2F;SIZE.h</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-%E8%BF%90%E8%A1%8C%E9%85%8D%E7%BD%AE%EF%BC%88Run-time-Configuration%EF%BC%89"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 运行配置（Run-time Configuration）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-%E8%BE%93%E5%87%BA%E6%A0%BC%E5%BC%8F"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 输出格式</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-%E7%BB%93%E6%9E%9C%E5%88%86%E6%9E%90"><span class="nav-number">4.</span> <span class="nav-text">4. 结果分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">5. 总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Wang Yilin"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">Wang Yilin</p>
+  <div class="site-description" itemprop="description">生活可以随心所欲，但不能随波逐流</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">13</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/WYL-PKU" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;WYL-PKU" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:3210225896@qq.com" title="E-Mail → mailto:3210225896@qq.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i></a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://twitter.com/William27181918" title="Twitter → https:&#x2F;&#x2F;twitter.com&#x2F;William27181918" rel="noopener" target="_blank"><i class="fab fa-twitter fa-fw"></i></a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2024</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Wang Yilin</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-chart-area"></i>
+    </span>
+      <span class="post-meta-item-text">站点总字数：</span>
+    <span title="站点总字数">16k</span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item-icon">
+      <i class="fa fa-coffee"></i>
+    </span>
+      <span class="post-meta-item-text">站点阅读时长 &asymp;</span>
+    <span title="站点阅读时长">54 分钟</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+
+
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    <span class="post-meta-item" id="busuanzi_container_site_uv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-divider">|</span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv" style="display: none;">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  
+  <script color='0,0,255' opacity='0.5' zIndex='-1' count='99' src="/lib/canvas-nest/canvas-nest.min.js"></script>
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+<script>
+document.querySelectorAll('.pdfobject-container').forEach(element => {
+  let url = element.dataset.target;
+  let pdfOpenParams = {
+    navpanes : 0,
+    toolbar  : 0,
+    statusbar: 0,
+    pagemode : 'thumbs',
+    view     : 'FitH'
+  };
+  let pdfOpenFragment = '#' + Object.entries(pdfOpenParams).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
+  let fullURL = `/lib/pdf/web/viewer.html?file=${encodeURIComponent(url)}${pdfOpenFragment}`;
+
+  if (NexT.utils.supportsPDFs()) {
+    element.innerHTML = `<embed class="pdfobject" src="${url + pdfOpenFragment}" type="application/pdf" style="height: ${element.dataset.height};">`;
+  } else {
+    element.innerHTML = `<iframe src="${fullURL}" style="height: ${element.dataset.height};" frameborder="0"></iframe>`;
+  }
+});
+</script>
+
+
+
+
+  
+
+  
+      
+
+<script>
+  if (typeof MathJax === 'undefined') {
+    window.MathJax = {
+      loader: {
+        source: {
+          '[tex]/amsCd': '[tex]/amscd',
+          '[tex]/AMScd': '[tex]/amscd'
+        }
+      },
+      tex: {
+        inlineMath: {'[+]': [['$', '$']]},
+        tags: 'ams'
+      },
+      options: {
+        renderActions: {
+          findScript: [10, doc => {
+            document.querySelectorAll('script[type^="math/tex"]').forEach(node => {
+              const display = !!node.type.match(/; *mode=display/);
+              const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display);
+              const text = document.createTextNode('');
+              node.parentNode.replaceChild(text, node);
+              math.start = {node: text, delim: '', n: 0};
+              math.end = {node: text, delim: '', n: 0};
+              doc.math.push(math);
+            });
+          }, '', false],
+          insertedScript: [200, () => {
+            document.querySelectorAll('mjx-container').forEach(node => {
+              let target = node.parentNode;
+              if (target.nodeName.toLowerCase() === 'li') {
+                target.parentNode.classList.add('has-jax');
+              }
+            });
+          }, '', false]
+        }
+      }
+    };
+    (function () {
+      var script = document.createElement('script');
+      script.src = '//cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+      script.defer = true;
+      document.head.appendChild(script);
+    })();
+  } else {
+    MathJax.startup.document.state(0);
+    MathJax.texReset();
+    MathJax.typeset();
+  }
+</script>
+
+    
+
+  
+
+
+<script>
+NexT.utils.loadComments(document.querySelector('#valine-comments'), () => {
+  NexT.utils.getScript('//unpkg.com/valine/dist/Valine.min.js', () => {
+    var GUEST = ['nick', 'mail', 'link'];
+    var guest = 'nickname,mail,link';
+    guest = guest.split(',').filter(item => {
+      return GUEST.includes(item);
+    });
+    new Valine({
+      el         : '#valine-comments',
+      verify     : false,
+      notify     : true,
+      appId      : '1X6n70UTcE50boOVL79BDD21-MdYXbMMI',
+      appKey     : '82jRPU3YMDqt3bhXYagqt63i',
+      placeholder: "Just go go ^_^",
+      avatar     : 'mm',
+      meta       : guest,
+      pageSize   : '10' || 10,
+      visitor    : true,
+      lang       : '' || 'zh-cn',
+      path       : location.pathname,
+      recordIP   : false,
+      serverURLs : 'https://williamwyl.cn'
+    });
+  }, window.Valine);
+});
+</script>
+
+</body>
+</html>
